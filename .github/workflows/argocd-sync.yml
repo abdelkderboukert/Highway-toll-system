@@ -1,0 +1,40 @@
+name: CD - ArgoCD Sync
+
+on:
+    workflow_run:
+        workflows:
+            - "ML Pipeline - Build & Test"
+        types:
+            - completed
+
+jobs:
+    sync:
+        if: ${{ github.event.workflow_run.conclusion == 'success' && (github.event.workflow_run.head_branch == 'development' || github.event.workflow_run.head_branch == 'main') }}
+        name: Sync ArgoCD Application
+        runs-on: ubuntu-latest
+        steps:
+            - name: Checkout repository
+              uses: actions/checkout@v4
+
+            - name: Install ArgoCD CLI
+              run: |
+                  curl -sSL -o /usr/local/bin/argocd https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
+                  chmod +x /usr/local/bin/argocd
+
+            - name: Login to ArgoCD
+              env:
+                  ARGOCD_SERVER: ${{ secrets.ARGOCD_SERVER }}
+                  ARGOCD_USERNAME: ${{ secrets.ARGOCD_USERNAME }}
+                  ARGOCD_PASSWORD: ${{ secrets.ARGOCD_PASSWORD }}
+              run: |
+                  if [ -z "$ARGOCD_SERVER" ] || [ -z "$ARGOCD_USERNAME" ] || [ -z "$ARGOCD_PASSWORD" ]; then
+                    echo "ARGOCD_SERVER, ARGOCD_USERNAME, and ARGOCD_PASSWORD must be set"
+                    exit 1
+                  fi
+                  argocd login "$ARGOCD_SERVER" --username "$ARGOCD_USERNAME" --password "$ARGOCD_PASSWORD" --insecure --grpc-web
+
+            - name: Sync ArgoCD application
+              run: argocd app sync oil-well-production-prediction --grpc-web
+
+            - name: Wait for application health
+              run: argocd app wait oil-well-production-prediction --health --timeout 300

@@ -1,0 +1,52 @@
+name: Continuous Training (CT)
+
+on:
+  schedule:
+    - cron: '0 0 1 * *' # Runs at 00:00 on the 1st of every month
+  workflow_dispatch:      # Allows manual trigger from GitHub UI
+  push:
+    paths:
+      - 'data/raw/**'    # Trigger if new data is uploaded
+
+jobs:
+  retrain:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          lfs: true # Critical for pulling the 391MB joblib
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+          cache: 'pip'
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+    
+      - name: Run Test 
+        run: |
+         cd AI
+         python -m tests.test_pipeline.py
+
+      - name: Execute Training Pipeline
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+        run: python main.py
+
+      - name: Check for Model Improvement
+        run: |
+          # Logic to compare new MAE vs old MAE could go here
+          echo "Training complete. Verifying artifacts..."
+
+      - name: Commit Updated Model and Plots
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add models/ plots/ reports/
+          git commit -m "chore(mlops): automated model retraining [skip ci]" || echo "No changes to commit"
+          git push origin main

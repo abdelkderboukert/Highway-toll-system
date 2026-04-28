@@ -1,0 +1,8 @@
+# .github/CODEOWNERS
+
+# Protect the networking and infrastructure configs
+/config/                   @abdelkderboukert
+/.github/workflows/        @abdelkderboukert
+
+# Protect the core source code but allow others to be pinged
+/src/                      @abdelkderboukert
