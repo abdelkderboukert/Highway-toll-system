@@ -360,7 +360,7 @@ jobs:
           category: "trivy"
 
       - name: Scan image with Grype
-        uses: anchore/scan-action@v3
+        uses: anchore/scan-action@v7
         id: grype
         with:
           path: "/tmp/image.tar"
