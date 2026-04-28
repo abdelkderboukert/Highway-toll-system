@@ -101,7 +101,7 @@ jobs:
           gitleaks detect --source . --report-format json --report-path gitleaks-report.json
 
       - name: Upload GitLeaks report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         if: always()
         with:
           name: gitleaks-report
@@ -138,7 +138,7 @@ jobs:
         continue-on-error: true
 
       - name: Upload Bandit report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         if: always()
         with:
           name: bandit-security-report
@@ -168,7 +168,7 @@ jobs:
           npm audit --json > npm-audit-report.json || true
 
       - name: Upload npm audit report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         if: always()
         with:
           name: npm-audit-security-report
@@ -200,7 +200,7 @@ jobs:
           cargo audit --json > cargo-audit-report.json || true
 
       - name: Upload cargo audit report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         if: always()
         with:
           name: cargo-audit-security-report
@@ -242,7 +242,7 @@ jobs:
           flake8 UI/backend/ --format=json > backend-flake8-report.json || true
 
       - name: Upload quality reports
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         if: always()
         with:
           name: code-quality-reports
@@ -406,7 +406,7 @@ jobs:
         run: semgrep --config p/ci --json --output semgrep-report.json .
 
       - name: Upload Semgrep report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         if: always()
         with:
           name: semgrep-report
@@ -454,7 +454,7 @@ jobs:
         continue-on-error: true
 
       - name: Upload SBOM
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         if: always()
         with:
           name: sbom
