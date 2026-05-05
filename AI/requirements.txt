@@ -1,0 +1,8 @@
+ultralytics>=8.3.0
+pandas>=2.2.0
+opencv-python>=4.10.0
+numpy>=1.26.0
+scipy>=1.13.0
+easyocr>=1.7.2
+filterpy>=1.4.5
+setuptools>=70.0.0
