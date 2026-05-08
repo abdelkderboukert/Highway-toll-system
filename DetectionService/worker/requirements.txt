@@ -1,0 +1,20 @@
+# Worker (Stage 2 + 3) Python dependencies
+# Pin versions for reproducibility
+
+# Computer vision & plate YOLO
+opencv-python-headless==4.10.0.84
+ultralytics==8.3.0
+
+# Redis (async — worker uses aioredis for non-blocking egress)
+redis[asyncio]==5.0.8
+
+# Async HTTP egress
+aiohttp==3.10.5
+
+# OCR backends (choose one; tesseract is default via system package)
+pytesseract==0.3.13         # Wrapper for system Tesseract binary
+# easyocr==1.7.1            # GPU-accelerated alternative
+Pillow==10.4.0              # Required by pytesseract
+
+# Numeric
+numpy==1.26.4

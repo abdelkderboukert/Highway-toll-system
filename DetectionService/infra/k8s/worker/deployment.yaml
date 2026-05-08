@@ -1,0 +1,96 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: worker
+  namespace: traffic-pipeline
+  labels:
+    app: worker
+    component: stage2-3
+spec:
+  # HPA / KEDA manages replica count — start at 1 (never 0).
+  replicas: 1
+  selector:
+    matchLabels:
+      app: worker
+  template:
+    metadata:
+      labels:
+        app: worker
+        component: stage2-3
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+    spec:
+      terminationGracePeriodSeconds: 30
+
+      containers:
+        - name: worker
+          image: ghcr.io/your-org/traffic-pipeline/worker:latest
+          imagePullPolicy: Always
+
+          env:
+            - name: REDIS_HOST
+              value: "redis-service.traffic-pipeline.svc.cluster.local"
+            - name: REDIS_PORT
+              value: "6379"
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: redis-secret
+                  key: password
+            - name: REDIS_QUEUE_KEY
+              value: "pipeline:tasks"
+            - name: DEAD_LETTER_QUEUE_KEY
+              value: "pipeline:dlq"
+            - name: PLATE_MODEL_PATH
+              value: "/models/plate.pt"
+            - name: DESKEW_ENABLED
+              value: "false"
+            - name: OCR_ENGINE
+              value: "tesseract"
+            - name: OCR_MIN_CONFIDENCE
+              value: "0.7"
+            - name: EGRESS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: egress-secret
+                  key: url
+            - name: EGRESS_MAX_RETRIES
+              value: "3"
+
+          resources:
+            requests:
+              cpu: "500m"
+              memory: "512Mi"
+            limits:
+              cpu: "2000m"
+              memory: "2Gi"
+
+          volumeMounts:
+            - name: models-volume
+              mountPath: /models
+              readOnly: true
+
+          livenessProbe:
+            exec:
+              command:
+                - python
+                - -c
+                - "from stage2.preprocessor import Preprocessor; print('ok')"
+            initialDelaySeconds: 20
+            periodSeconds: 30
+            failureThreshold: 3
+
+          readinessProbe:
+            exec:
+              command:
+                - python
+                - -c
+                - "import redis; r=redis.Redis(host='redis-service.traffic-pipeline.svc.cluster.local'); r.ping()"
+            initialDelaySeconds: 10
+            periodSeconds: 15
+
+      volumes:
+        - name: models-volume
+          persistentVolumeClaim:
+            claimName: models-pvc

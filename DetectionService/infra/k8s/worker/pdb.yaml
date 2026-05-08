@@ -1,0 +1,16 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: worker-pdb
+  namespace: traffic-pipeline
+  labels:
+    app: worker
+    component: stage2-3
+spec:
+  # At least 1 worker must always be available during disruptions
+  # (node drains, rolling updates, etc.).
+  # This pairs with the HPA minReplicas: 1 guarantee.
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: worker

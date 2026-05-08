@@ -1,0 +1,51 @@
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: worker-hpa
+  namespace: traffic-pipeline
+  labels:
+    app: worker
+    component: stage2-3
+  annotations:
+    # This HPA is driven by KEDA (ScaledObject in buffer/keda_scaledobject.yaml).
+    # KEDA creates a custom metric from the Redis pipeline:tasks list length
+    # and publishes it to the Kubernetes metrics API. This HPA reads that metric.
+    # Do not edit minReplicas here — edit it in the KEDA ScaledObject.
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: worker
+
+  # CRITICAL: Never set minReplicas to 0.
+  # Cold start on the first task after scaling from 0 is unacceptable.
+  minReplicas: 1
+  maxReplicas: 20
+
+  metrics:
+    # KEDA exposes the Redis queue depth as a custom metric named
+    # s0-pipeline-tasks (auto-generated from the ScaledObject name).
+    - type: External
+      external:
+        metric:
+          name: s0-worker-scaledobject
+          selector:
+            matchLabels:
+              scaledobject.keda.sh/name: worker-scaledobject
+        target:
+          type: AverageValue
+          averageValue: "5"   # 5 tasks per worker replica
+
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 30
+      policies:
+        - type: Pods
+          value: 4
+          periodSeconds: 30
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+        - type: Pods
+          value: 1
+          periodSeconds: 60

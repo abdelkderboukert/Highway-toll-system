@@ -1,0 +1,15 @@
+# Stage 1 Python dependencies
+# Pin versions for reproducibility
+
+# Computer vision & YOLO
+opencv-python-headless==4.10.0.84
+ultralytics==8.3.0          # YOLOv8n + v5 support
+
+# Redis (sync — Stage 1 uses fire-and-forget sync LPUSH)
+redis==5.0.8
+
+# Numeric
+numpy==1.26.4
+
+# Optional: MOT backends (comment out if not needed)
+# boxmot==10.0.76           # ByteTrack / StrongSORT

@@ -1,0 +1,58 @@
+version: "3.9"
+
+# Local development stack for the DetectionService pipeline.
+# Starts Redis + mock egress sink.
+#
+# Usage:
+#   docker-compose up -d
+#   python scripts/test_pipeline.py
+
+services:
+
+  redis:
+    image: redis:7.2-alpine
+    container_name: pipeline_redis
+    command: redis-server /usr/local/etc/redis/redis.conf
+    ports:
+      - "6379:6379"
+    volumes:
+      - ./buffer/redis.conf:/usr/local/etc/redis/redis.conf:ro
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - pipeline_net
+
+  egress-sink:
+    image: python:3.11-slim
+    container_name: pipeline_egress_sink
+    command: >
+      sh -c "pip install --quiet flask &&
+             python -c \"
+      from flask import Flask, request, jsonify
+      app = Flask('egress-sink')
+      @app.route('/detections', methods=['POST'])
+      def receive():
+          data = request.get_json(silent=True) or {}
+          print(f'[SINK] plate={data.get(chr(34)+\"plate_number\"+chr(34),\"?\")} '
+                f'speed={data.get(chr(34)+\"speed_kmh\"+chr(34),0):.1f}km/h',
+                flush=True)
+          return jsonify({'status':'ok'})
+      app.run(host='0.0.0.0', port=8080)
+      \""
+    ports:
+      - "8080:8080"
+    networks:
+      - pipeline_net
+
+volumes:
+  redis_data:
+
+networks:
+  pipeline_net:
+    driver: bridge

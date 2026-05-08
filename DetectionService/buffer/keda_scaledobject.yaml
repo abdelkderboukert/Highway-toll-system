@@ -1,0 +1,54 @@
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: worker-scaledobject
+  namespace: traffic-pipeline
+  labels:
+    app: worker
+    component: stage2-3
+spec:
+  # Target: the worker Deployment
+  scaleTargetRef:
+    name: worker
+
+  # Scale bounds
+  # CRITICAL: minReplicaCount must NEVER be 0.
+  # A cold start on the first task after scaling from 0 creates unacceptable
+  # detection latency. Always keep at least 1 warm worker.
+  minReplicaCount: 1
+  maxReplicaCount: 20
+
+  # Cooldown periods (seconds)
+  # Scale-up is fast (30s) to drain queue spikes quickly.
+  # Scale-down is slow (300s) to avoid thrashing during brief traffic lulls.
+  pollingInterval: 15
+  cooldownPeriod: 300
+  advanced:
+    horizontalPodAutoscalerConfig:
+      behavior:
+        scaleUp:
+          stabilizationWindowSeconds: 30
+          policies:
+            - type: Pods
+              value: 4
+              periodSeconds: 30
+        scaleDown:
+          stabilizationWindowSeconds: 300
+          policies:
+            - type: Pods
+              value: 1
+              periodSeconds: 60
+
+  triggers:
+    - type: redis
+      metadata:
+        # Redis connection — host injected from Secret
+        address: redis-service.traffic-pipeline.svc.cluster.local:6379
+        listName: pipeline:tasks
+        listLength: "5"
+        # Target: 5 tasks per worker replica.
+        # Queue depth 30 → HPA scales to 6 workers.
+        # Queue depth returns to 0 → HPA scales back to minReplicaCount: 1.
+        enableTLS: "false"
+      authenticationRef:
+        name: keda-redis-auth

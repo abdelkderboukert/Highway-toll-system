@@ -1,0 +1,121 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: stage1-camera
+  namespace: traffic-pipeline
+  labels:
+    app: stage1
+    component: edge-ingress
+spec:
+  # One replica per camera. NEVER increase replicas for the same camera.
+  # Horizontal scaling of Stage 1 causes duplicate Snapshot Events.
+  # Scale vertically via the VPA config in vpa.yaml.
+  replicas: 1
+  serviceName: stage1-headless
+
+  selector:
+    matchLabels:
+      app: stage1
+
+  template:
+    metadata:
+      labels:
+        app: stage1
+        component: edge-ingress
+
+    spec:
+      terminationGracePeriodSeconds: 15
+
+      containers:
+        - name: stage1-detector
+          image: ghcr.io/your-org/traffic-pipeline/stage1:latest
+          imagePullPolicy: Always
+
+          env:
+            - name: RTSP_URL
+              valueFrom:
+                secretKeyRef:
+                  name: camera-secrets
+                  key: rtsp_url
+            - name: CAMERA_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name  # Uses pod name as camera_id
+            - name: REDIS_HOST
+              value: "redis-service.traffic-pipeline.svc.cluster.local"
+            - name: REDIS_PORT
+              value: "6379"
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: redis-secret
+                  key: password
+            - name: REDIS_QUEUE_KEY
+              value: "pipeline:tasks"
+            - name: LEDGER_TTL_SECONDS
+              value: "300"
+            - name: YOLO_MODEL_PATH
+              value: "/models/yolov8n.pt"
+            - name: HOMOGRAPHY_PATH
+              value: "/calibrations/homography.json"
+            - name: DESKEW_ENABLED
+              value: "false"
+
+          resources:
+            # Initial requests — VPA will tune these over 24-48 hours
+            requests:
+              cpu: "500m"
+              memory: "512Mi"
+            limits:
+              cpu: "2000m"
+              memory: "2Gi"
+
+          volumeMounts:
+            - name: models-volume
+              mountPath: /models
+              readOnly: true
+            - name: calibrations-volume
+              mountPath: /calibrations
+              readOnly: true
+
+          livenessProbe:
+            exec:
+              command:
+                - python
+                - -c
+                - "from stage1.ledger import TrackingLedger; print('ok')"
+            initialDelaySeconds: 20
+            periodSeconds: 30
+            failureThreshold: 3
+
+          readinessProbe:
+            exec:
+              command:
+                - python
+                - -c
+                - "import redis; r=redis.Redis(host='redis-service.traffic-pipeline.svc.cluster.local'); r.ping()"
+            initialDelaySeconds: 10
+            periodSeconds: 15
+
+      volumes:
+        - name: models-volume
+          persistentVolumeClaim:
+            claimName: models-pvc
+        - name: calibrations-volume
+          configMap:
+            name: camera-calibrations
+
+---
+# Headless Service — required for StatefulSet DNS identity
+apiVersion: v1
+kind: Service
+metadata:
+  name: stage1-headless
+  namespace: traffic-pipeline
+spec:
+  clusterIP: None
+  selector:
+    app: stage1
+  ports:
+    - port: 80
+      targetPort: 80

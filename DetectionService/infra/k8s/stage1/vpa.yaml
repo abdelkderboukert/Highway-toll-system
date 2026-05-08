@@ -1,0 +1,43 @@
+apiVersion: autoscaling.k8s.io/v1
+kind: VerticalPodAutoscaler
+metadata:
+  name: stage1-vpa
+  namespace: traffic-pipeline
+  labels:
+    app: stage1
+    component: edge-ingress
+  annotations:
+    # KEP-1287 tracking: In-Place Pod Vertical Scaling (beta in K8s 1.29).
+    # When KEP-1287 reaches GA, enable it here to eliminate 5-15s pod
+    # restart gaps during resource adjustments.
+    # See: https://github.com/kubernetes/enhancements/issues/1287
+    kep-1287-status: "waiting-for-ga"
+spec:
+  targetRef:
+    apiVersion: apps/v1
+    kind: StatefulSet
+    name: stage1-camera
+
+  # Auto mode: VPA applies resource recommendations automatically.
+  # This causes pod restarts in K8s <= 1.26. Acceptable because VPA
+  # scales slowly (hours/days based on trends), not reactively.
+  updatePolicy:
+    updateMode: "Auto"
+
+  resourcePolicy:
+    containerPolicies:
+      - containerName: stage1-detector
+        # Lower bound: minimum resources guaranteed at all times
+        minAllowed:
+          cpu: "250m"
+          memory: "256Mi"
+        # Upper bound: prevents runaway resource allocation
+        maxAllowed:
+          cpu: "4000m"
+          memory: "4Gi"
+        # VPA controls both CPU and memory
+        controlledResources:
+          - cpu
+          - memory
+        # VPA manages both requests and limits
+        controlledValues: RequestsAndLimits
